@@ -8,7 +8,8 @@ class PartsDetailScraper:
     def parse(self):
         # self.scrape_title_section()
     #    print(self.scrape_stock_and_prices())
-         print(self.scrape_parts_detail())
+        #  print(self.scrape_parts_detail())
+        self.scrape_related_parts()
 
 
 
@@ -167,9 +168,51 @@ class PartsDetailScraper:
             parts[part_title] = part_value
 
         return parts
+    
+    def scrape_related_parts(self):
+        related_part_section = self.soup.find("section", id="relatedParts")
 
+        if not related_part_section:
+            return None
+
+        recommended_list = related_part_section.select("ul.recommend-list div.recommend-list-item-info")
+        print("recommended list", recommended_list)
+
+        if not recommended_list:
+            return None
+
+        parts_data = {}
+
+        for item in recommended_list:
+            name=item.select("span:first-child")
+            desc_category = item.select("span:last-child")
+            print("name", name, desc_category)
+
+            if name and  desc_category:
+               
+                name = name[0].get("title")  
+                description =  desc_category[0].get_text(strip=True)  
+
+                parts_data["related_parts"] = {
+                    "name": name,
+                    "description": description,
+                }
+        print("parts data",parts_data)
+
+        return parts_data
+
+
+
+
+                
+            
 
         
+         
+          
+
+
+            
 
      
       
