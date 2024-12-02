@@ -8,7 +8,7 @@ class PartsDetailScraper:
     def parse(self):
         # self.scrape_title_section()
     #    print(self.scrape_stock_and_prices())
-         self.scrape_parts_detail()
+         print(self.scrape_parts_detail())
 
 
 
@@ -131,19 +131,45 @@ class PartsDetailScraper:
 
     def scrape_parts_detail(self):
         parts_table = self.soup.find("div", class_="part-compare-content").find("table")
+
+        parts={}
         
         if not parts_table:
             return None
-        
-
-        # print("parts_table",parts_table)
-
+    
         header_tr=self.soup.find("tr", class_="header-row")
-        print("header tr",header_tr)
 
-        header_tr.dispose()
 
-        print("header tr",header_tr)
+        if header_tr:
+            header_tr.decompose()
+
+        
+        empty_row=parts_table.find("tr",class_="data-row new-row template-row")
+        if empty_row:
+            empty_row.decompose()
+
+        rows=parts_table.find_all("tr",class_="data-row")
+
+
+        if not rows:
+            return None
+        
+        
+        for row in rows: 
+        
+            part_title_row = row.select_one("td:nth-child(1)")
+            part_title = part_title_row.text.strip() if part_title_row else None
+
+          
+            part_value_row = row.select_one("td:nth-child(2)")
+            part_value = part_value_row.text.strip() if part_value_row else None
+
+            parts[part_title] = part_value
+
+        return parts
+
+
+        
 
      
       
