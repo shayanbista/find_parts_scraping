@@ -8,8 +8,6 @@ class PartsDetailScraper:
     def parse(self):
 
         parts_dict = {}
-
-
         parts_dict["title_section"] = self.scrape_title_section()
         parts_dict["stock_and_prices"] = self.scrape_stock_and_prices()
         parts_dict["parts_detail"] = self.scrape_parts_detail()
@@ -18,29 +16,28 @@ class PartsDetailScraper:
         return parts_dict
 
     def scrape_title_section(self):
+        title_informations = {}
 
-        title_informations ={}
-
+     
         product_number_div = self.soup.select_one(
             "div.wrapper>div.analytics-part-info>span"
         )
         manufacturer_div = self.soup.select_one(
             "div.wrapper>div.analytics-part-info>span.analytics-part-manufacturer>div.select-manufacturer select>option:nth-of-type(2)"
         )
-
         description_paragraph = self.soup.select_one("div.wrapper p")
 
+     
+        product_number = product_number_div.text.strip() if product_number_div else "N/A"
+        manufacturer = manufacturer_div.text.strip() if manufacturer_div else "N/A"
+        description = description_paragraph.text.strip() if description_paragraph else "N/A"
 
-        product_number = product_number_div.text.strip()
-        manufacturer = manufacturer_div.text.strip()
-        description = description_paragraph.text.strip()
-
+     
         title_informations["product_number"] = product_number
         title_informations["manufacturer"] = manufacturer
         title_informations["description"] = description
 
         return title_informations
-
 
     def scrape_stock_and_prices(self):
         stock_table = self.soup.find("table")
@@ -54,6 +51,9 @@ class PartsDetailScraper:
         stock_dist = {}
 
         rows = stock_table.find_all("tr")
+        
+        if any('error-row' in row.get('class', []) or 'template-row' in row.get('class', []) for row in rows):
+            return None
 
 
         for row in rows:
@@ -121,9 +121,12 @@ class PartsDetailScraper:
             return stock_dist 
 
      
-
     def scrape_parts_detail(self):
-        parts_table = self.soup.find("div", class_="part-compare-content").find("table")
+
+        parts_table = self.soup.select_one("div.part-compare-content table")
+
+        print("parts table",parts_table)
+
 
         parts={}
         
