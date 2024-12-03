@@ -25,15 +25,16 @@ class PartsDetailScraper:
         manufacturer_div = self.soup.select_one(
             "div.wrapper>div.analytics-part-info>span.analytics-part-manufacturer>div.select-manufacturer select>option:nth-of-type(2)"
         )
+
+        if not manufacturer_div:
+            manufacturer_div=self.soup.select_one("div.wrapper>div.analytics-part-info>span.analytics-part-manufacturer>span:nth-of-type(2)")
+          
+
         description_paragraph = self.soup.select_one("div.wrapper p")
 
-        product_number = (
-            product_number_div.text.strip() if product_number_div else "N/A"
-        )
-        manufacturer = manufacturer_div.text.strip() if manufacturer_div else "N/A"
-        description = (
-            description_paragraph.text.strip() if description_paragraph else "N/A"
-        )
+        product_number = product_number_div.text.strip() 
+        manufacturer = manufacturer_div.text.strip() 
+        description = description_paragraph.text.strip() 
 
         title_informations["product_number"] = product_number
         title_informations["manufacturer"] = manufacturer
