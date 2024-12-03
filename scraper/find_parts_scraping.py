@@ -12,8 +12,10 @@ class PartsDetailScraper:
         parts_dict["stock_and_prices"] = self.scrape_stock_and_prices()
         parts_dict["parts_detail"] = self.scrape_parts_detail()
         parts_dict["related_parts"] = self.scrape_related_parts()
+        parts_dict["alternate_sections"] = self.scrape_alternate_sections()
 
         return parts_dict
+
 
     def scrape_title_section(self):
         title_informations = {}
@@ -200,3 +202,52 @@ class PartsDetailScraper:
                     }
                 )
         return parts_data
+
+    def scrape_alternate_sections(self):
+        alternate_section=self.soup.find("section",class_="alternative-section")
+
+        alternate_dict=[]
+
+        if not alternate_section:
+            return None
+        
+
+        section_table=alternate_section.select_one("div.dash-section-content table")
+
+        if not section_table:
+            return None
+        
+        rows=section_table.select("tbody tr")
+
+        for row in rows:
+            part_number_column=row.select_one("td:nth-child(1) a")
+            part_url=part_number_column.get("href")
+            part_number=part_number_column.get_text(strip=True)
+
+            manufacturer_column=row.select_one("td:nth-child(2)")
+            manufacturer= manufacturer_column.get_text(strip=True)
+
+            prices_column=row.select_one("td:nth-child(3) a")
+            prices_url=prices_column.get("href")
+
+            description_column=row.select_one("td:nth-child(4)")
+            description=description_column.get_text(strip=True)
+
+            comparison_column=row.select_one("td:nth-child(5) a")
+            comparison_url=comparison_column.get("href")
+            comparison=comparison_column.get_text(strip=True)
+
+            alternate_dict.append({
+                "part_number":part_number,
+                "part_url":part_url,
+                "manufacturer":manufacturer,
+                "prices_url":prices_url,
+                "description":description,
+                "comparison_url":comparison_url
+            })
+
+        return alternate_dict
+
+
+
+     
