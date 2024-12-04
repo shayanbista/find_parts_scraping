@@ -1,6 +1,8 @@
 from bs4 import BeautifulSoup
 
 
+from utils.safe_call_utils import safe_call
+
 class PartsDetailScraper:
     def __init__(self, soup):
         self.soup = soup
@@ -19,22 +21,16 @@ class PartsDetailScraper:
     def scrape_title_section(self):
         title_informations = {}
 
-        product_number_div = self.soup.select_one(
-            "div.wrapper>div.analytics-part-info>span"
-        )
-        manufacturer_div = self.soup.select_one(
-            "div.wrapper>div.analytics-part-info>span.analytics-part-manufacturer>div.select-manufacturer select>option:nth-of-type(2)"
-        )
+        product_number = self.soup.select_one("span.analytics-part-number").get_text(strip=True)
+        description =self.soup.select_one("div.wrapper p").get_text(strip=True)        
+        try:
+            manufacturer=self.soup.select_one("div.select-manufacturer option:nth-of-type(2)").get_text(strip=True)
+        except:
+            try:
+                manufacturer =self.soup.select_one("span.analytics-part-manufacturer span:nth-of-type(2)").get_text(strip=True)
+            except:
+                mfg = ""
 
-        if not manufacturer_div:
-            manufacturer_div=self.soup.select_one("div.wrapper>div.analytics-part-info>span.analytics-part-manufacturer>span:nth-of-type(2)")
-          
-
-        description_paragraph = self.soup.select_one("div.wrapper p")
-
-        product_number = product_number_div.text.strip() 
-        manufacturer = manufacturer_div.text.strip() 
-        description = description_paragraph.text.strip() 
 
         title_informations["product_number"] = product_number
         title_informations["manufacturer"] = manufacturer
@@ -43,212 +39,178 @@ class PartsDetailScraper:
         return title_informations
 
     def scrape_stock_and_prices(self):
-        stock_table = self.soup.find("table")
-        if not stock_table:
-            return None
-
-        stock_thead = stock_table.find("thead")
-        if stock_thead:
-            stock_thead.decompose()
 
         stock_dist = {}
 
-        rows = stock_table.find_all("tr")
+        rows = self.soup.select("tr.price-stock-tr")
 
-        if any(
-            "error-row" in row.get("class", [])
-            or "template-row" in row.get("class", [])
-            for row in rows
-        ):
-            return None
+        if not rows:
+            return stock_dist
 
         for row in rows:
-            part_url_a = row.select_one("td:nth-child(1) a")
-            parts_number_additional_description = row.select_one(
-                "td:nth-child(1) span.td-desc-distributor"
+            part_url = safe_call(
+                lambda: row.select_one("div.part-name.new a").get("href")
+            )
+            part_name = safe_call(
+                lambda: row.select_one("div.part-name.new a").get_text(strip=True)
+            )
+            distributor_url = safe_call(lambda: row.select_one(".td-dis a").get("href"))
+            distributor_name = safe_call(
+                lambda: row.select_one(".td-dis a").get_text(strip=True)
+            )
+            description = safe_call(
+                lambda: row.select_one("span.td-description.more")
+            ).get_text(strip=True)
+            additional_description = safe_call(
+                lambda: row.select("span.additional-description")
             )
 
-            combined_description = None
-            if parts_number_additional_description:
-                combined_description = " ".join(
-                    [
-                        span.text.strip()
-                        for span in parts_number_additional_description.find_all("span")
-                    ]
+            title_value = []
+
+            if not additional_description:
+                return title_value
+
+            for span_row in additional_description:
+                title = safe_call(
+                    lambda: span_row.select_one("span:first-child").get_text(strip=True)
+                )
+                value = safe_call(
+                    lambda: span_row.select_one("span:last-child").get_text(strip=True)
                 )
 
-            part_url = part_url_a["href"]
-            part_name = part_url_a.text.strip()
+                title_value.append({"title": title, "value": value})
 
-            distributor_url_a = row.select_one("td:nth-child(2) a")
-            dist_url = distributor_url_a["href"]
-            dist_name = distributor_url_a.text.strip()
+            prices_column = safe_call(lambda: row.select(".td-price > ul > li"))
 
-            part_descrition_span = row.select_one("td:nth-child(3) span")
-            part_descrition = (
-                part_descrition_span.text.strip() if part_descrition_span else None
+            prices = []
+
+            if not prices_column:
+                return prices
+
+            for quantity_prices in prices_column:
+                quantity = safe_call(
+                    lambda: quantity_prices.select_one(".label").get_text(strip=True)
+                )
+                price = safe_call(
+                    lambda: quantity_prices.select_one(".value").get_text(strip=True)
+                )
+
+                prices.append({"quantity": quantity, "price": price})
+
+            purchase_url = safe_call(
+                lambda: row.select_one(".td-buy.last a").get("href")
             )
 
-            title_value_pairs = []
-            title_value_div = row.select("td:nth-child(3) span.additional-description")
-
-            for span_element in title_value_div:
-                span_title = span_element.select_one("span:first-child")
-                span_value = span_element.select_one("span:last-child")
-                if span_title and span_value:
-                    title_value_pairs.append(
-                        {
-                            "title": span_title.text.strip(),
-                            "value": span_value.text.strip(),
-                        }
-                    )
-
-            prices_list = []
-            prices_quantity_div = row.select("td:nth-child(5) ul > li.price-item")
-            for span_element in prices_quantity_div:
-                span_quantity = span_element.select_one("span:first-child")
-                span_price = span_element.select_one("span:last-child")
-                if span_quantity and span_price:
-                    prices_list.append(
-                        {
-                            "quantity": span_quantity.text.strip(),
-                            "price": span_price.text.strip(),
-                        }
-                    )
-
-            seller_url_a = row.select_one("td:nth-child(7) a")
-            seller_url = seller_url_a["href"] if seller_url_a else None
-
-            stock_dist = {
-                "dist_url": dist_url,
-                "dist_name": dist_name,
-                "part_url": part_url,
-                "part_name": part_name,
-                "combined_description": combined_description,
-                "part_descrition": part_descrition,
-                "title_value": title_value_pairs,
-                "price_quantity": prices_list,
-                "seller_url": seller_url,
-            }
+            stock_dist.update(
+                {
+                    "part_url": part_url,
+                    "part_name": part_name,
+                    "distributor_url": distributor_url,
+                    "distributor_name": distributor_name,
+                    "description": description,
+                    "title_value": title_value,
+                    "prices": prices,
+                    "purchase_url": purchase_url,
+                }
+            )
 
             return stock_dist
 
     def scrape_parts_detail(self):
 
-        parts_table = self.soup.select_one("div.part-compare-content table")
-
-        print("parts table", parts_table)
-
-        parts = {}
-
-        if not parts_table:
-            return None
-
-        header_tr = self.soup.find("tr", class_="header-row")
-
-        if header_tr:
-            header_tr.decompose()
-
-        empty_row = parts_table.find("tr", class_="data-row new-row template-row")
-        
-        if empty_row:
-            empty_row.decompose()
-
-        rows = parts_table.find_all("tr", class_="data-row")
-
-        if not rows:
-            return None
-
-        for row in rows:
-
-            part_title_row = row.select_one("td:nth-child(1)")
-            part_title = part_title_row.text.strip() if part_title_row else None
-
-            part_value_row = row.select_one("td:nth-child(2)")
-            part_value = part_value_row.text.strip() if part_value_row else None
-
-            parts[part_title] = part_value
-
-        return parts
-
-    def scrape_related_parts(self):
-        related_part_section = self.soup.find("section", id="relatedParts")
-
-        if not related_part_section:
-            return None
-
-        recommended_list = related_part_section.select(
-            "ul.recommend-list div.recommend-list-item-info"
+        compare_table = safe_call(
+            lambda: self.soup.select(".default-table.compare-table tr.data-row")
         )
 
-        if not recommended_list:
-            return None
+        parts_detail = []
 
-        parts_data = []
+        if not compare_table:
+            return parts_detail
 
-        for item in recommended_list:
-            name = item.select("span:first-child")
-            desc_category = item.select("span:last-child")
+        for row in compare_table[1:]:
+            title = safe_call(
+                lambda: row.select_one(".main-part-cell").get_text(strip=True)
+            )
+            value = safe_call(
+                lambda: row.select_one(".compare-part-cell").get_text(strip=True)
+            )
 
-            if name and desc_category:
+            parts_detail.append(
+                {
+                    "title": title,
+                    "value": value,
+                }
+            )
 
-                name = name[0].get("title")
-                description = desc_category[0].get_text(strip=True)
+        return parts_detail
 
-                parts_data.append(
-                    {
-                        "name": name,
-                        "description": description,
-                    }
-                )
-        return parts_data
+    def scrape_related_parts(self):
+
+        related_part_section = safe_call(
+            lambda: self.soup.select("section#relatedParts ul li span.name")
+        )
+
+        related_part = []
+
+        if not related_part_section:
+            return related_part
+
+        for span_elements in related_part_section:
+            related_names = safe_call(lambda: span_elements.get_text(strip=True))
+
+            related_part.append(
+                {
+                    "name": related_names,
+                }
+            )
+
+        return related_part
 
     def scrape_alternate_sections(self):
 
-        alternate_section = self.soup.find("section", class_="alternative-section")
-        
-        if not alternate_section:
-            return None
+        alternate_data = []
 
-        alternate_dict = []
+        alternate_section_tables = safe_call(
+            lambda: self.soup.select(".dash-section-content.analytics-fff table")
+        )
 
-   
-        section_tables = alternate_section.select("div.dash-section-content table")
+        if not alternate_section_tables:
+            return alternate_data
 
-        if not section_tables:
-            return None
-        
-        for table in section_tables:
+        for table in alternate_section_tables:
             rows = table.select("tbody tr")
-        
+
             for row in rows:
-                part_number_column = row.select_one("td:nth-child(1) a")
-                manufacturer_column = row.select_one("td:nth-child(2)")
-                prices_column = row.select_one("td:nth-child(3) a")
-                description_column = row.select_one("td:nth-child(4)")
-                comparison_column = row.select_one("td:nth-child(5) a")
 
-            
-                part_url = part_number_column.get("href")
-                prices_url = prices_column.get("href") 
-                comparison_url = comparison_column.get("href") 
+                part_url = safe_call(
+                    lambda: row.select_one(".td-col-1 a").get("href")
+                )
+                part_name = safe_call(
+                    lambda: row.select_one(".td-col-1 a").get_text(strip=True)
+                )
 
-                part_number = part_number_column.get_text(strip=True) 
-                manufacturer = manufacturer_column.get_text(strip=True)
-                description = description_column.get_text(strip=True) 
-                comparison = comparison_column.get_text(strip=True) 
+                manufacturer = safe_call(
+                    lambda: row.select_one(".td-col-2").get_text(strip=True)
+                )
+                prices_url = safe_call(
+                    lambda: row.select_one(".td-col-3 a").get("href")
+                )
+                description = safe_call(
+                    lambda: row.select_one(".td-col-4").get_text(strip=True)
+                )
+                comparison_url = safe_call(
+                    lambda: row.select_one(".td-col-5 a").get("href")
+                )
 
-                
-                alternate_dict.append({
-                    "part_number": part_number,
-                    "part_url": part_url,
-                    "manufacturer": manufacturer,
-                    "prices_url": prices_url,
-                    "description": description,
-                    "comparison_url": comparison_url
-                })
-        
+                alternate_data.append(
+                    {
+                        "part_url": part_url,
+                        "part_name": part_name,
+                        "manufacturer": manufacturer,
+                        "prices_url": prices_url,
+                        "description": description,
+                        "comparison_url": comparison_url,
+                    }
+                )
 
-        return alternate_dict
-
-     
+        return alternate_data
